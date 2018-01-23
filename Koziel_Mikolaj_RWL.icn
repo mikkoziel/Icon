@@ -1,0 +1,360 @@
+procedure poprawnosc(s)
+  a:=""
+  every b:=!s do                #usuwanie spacji
+    if  b~==" " then a:=a||b
+  s:=a
+  c:=""
+  i:=1
+  until i==*s+1 do{
+    if s[i:i+1]~=="~"  then c:=c||s[i:i+1] # jeśli negacja to chwilowo pomijamy
+    else{
+      if s[i+1:i+2]=="~"  then{  #w przypadku gdy fwie negacje są koło siebie to je kasujemy
+        s:=s[1:i]||s[i+2:0]
+        i:=i-1                  # trzeba odjąć gdyż skraca się długość naszego łańcucha
+      }
+      else
+        if (find(s[i+1:i+2], &lcase)) then 1+1  #jeśli negacja nie znajduję sie przed małą literą lub nawiasem to błąd
+        else if s[i+1:i+2]=="(" then 2+2
+            else fail
+    }
+    i:=i+1
+  }
+  if c?(znak2() & pos(0)) then return s   #sprawdzamy wyrażenie bez negacji ale zwracamy z negacją
+end
+
+
+procedure znak2()                           #sprawdzamy po kolei kolejne znaki
+  suspend znak3() | (znak3() || ="^" || znak2())
+end
+
+procedure znak3()
+  suspend znak4() | (znak4() || ="&" || znak3())
+end
+
+procedure znak4()
+  suspend znak5() | (znak5() || ="|" || znak4())
+end
+
+procedure znak5()
+  suspend znak6() | (znak6() || =">" || znak5())
+end
+
+procedure znak6()
+  suspend =(!&lcase| !"TF") | (="(" || znak2() || =")")
+end
+
+procedure odwrotnaNP(s)               # zamiana wyrażenia na Odwrotną Notację polską
+  while s?:=2(="(", tab(bal(")")), pos(-1))
+  s ? every a:=bal('>')             # szukamy znaku implikacji a następnie przestawiamy go na koniec, to samo robimy z pozostałymi
+  if \a then return odwrotnaNP(s[1:a]) ||odwrotnaNP(s[a+1:0]) || s[a]
+  s ? every a:=bal(!'&|')
+  if \a then return odwrotnaNP(s[1:a]) ||odwrotnaNP(s[a+1:0]) || s[a]
+  s ? every a:=bal('^')
+  if \a then return odwrotnaNP(s[1:a]) ||odwrotnaNP(s[a+1:0]) || s[a]
+	if s[1]=="~" then return odwrotnaNP(s[2:0]) || s[1]
+  return s
+end
+
+procedure tabela_prawdy(s,liczba)       #obliczanie tabeli prawdy
+  s:=map(s, cset(s) ** &lcase, liczba)
+  if *(cset(s)**'T')~==0 then s:=map(s, cset(s) ** 'T', '1')    #"T" zamieniamy na "1"
+  if *(cset(s)**'F')~==0 then s:=map(s, cset(s) ** 'F', '0')    #"F" zamieniamy na "0"
+  x:=[]                             #stos
+  every e:=!s do {
+    if e==!"01" then push(x, e)     #jeśli to 0 albo 1 dajemy na stos
+    else case e of {                  # w zależności od danego znaku wykonujemy odpowiednie przekształcenie
+      "&" : push(x, iand(pop(x), pop(x)))
+      "|" : push(x, ior(pop(x), pop(x)))
+      ">" : push(x, ior(pop(x), 1-pop(x)))
+      "~" : push(x, 1-pop(x))
+      "^" : push(x, ixor(pop(x), pop(x)))
+    }
+  }
+  return pop(x)
+end
+
+procedure generator(i)              # generator kolejnych ciągó binarnych do tabel prawdy
+  if i=0 then suspend ""
+  else suspend !"01" || generator(i-1)
+end
+
+procedure wyrazenie(s)            #obliczanie wyrażenia właściwego
+    w:=""                       #wynik wyrażenia na podstawie tabeli prawdy
+    q:=*(s**&lcase)             #liczba małych liter występująych w wyrażeniu
+    bin:=list(0)                #lista wygenerowaych przez genertor wartości sygnałów
+    flag:=0                     #flaga używana przy sprawdzeniu alternatywy wykluczającej
+
+    every v := generator(q) do{          #dla wygenerowaych ciągów....
+      wynik:=tabela_prawdy(s,v)        #Sprawdzamy wynik wyrażenia...
+      w:=w||wynik                      #i zapisujemy do w
+      bin:=bin|||[v]                   #zaś sam ciąg zapisujemy do listy bin
+
+      mag:=0                          #zmienna licząca ilość jedynek w wyg ciągach(potrzebna do xor)
+      if wynik=='0' then {            #funkcja licząca ilość 1 w wygenerowaych ciągach przy wyniku "0"
+        mag:=liczyc(v)
+        if mag%2~=0 then flag:=flag-100000    #jeśli liczba 1 jest nieparzyta przy wyniku "0" to flaga jest na nie
+      }
+      if wynik=='1' then {              #funkcja licząca ilość 1 w wygenerowaych ciągach przy wyniku "1"
+        mag:=liczyc(v)
+        if mag%2~=0 then flag:=flag+1   #jeśli liczba 1 jest nieparzyta przy wyniku "1" to flaga jest na to jest ok
+        else flag:=0
+      }
+    }
+
+  s:=odczyt(w, bin, q, flag, s)      #procedura redukująca wyrazenie
+  return s
+end
+
+procedure liczyc(v)       #procedura licząca 1 w wygenerowanych ciągach
+  mag:=0
+  every a:=!v do{
+    if a=='1' then {
+      mag:=mag+1
+    }
+  }
+  return mag          #zwracamy liczbę jedynek
+end
+
+procedure odczyt(w, v, m, flag, q)   #procedura redukująca wyrazenie
+  licz:=0                 #liczba jedynek w wyniku tabeli prawdy
+  cal:=*w                 #liczba jedynek i zer w wyniku tabeli prawdy
+  s:=""                   #wyrazenie zredukowane
+  a:=q**&lcase            #litery występujące w wyrażeniu
+
+  every i:=1 to *w+1 do{                #funkcja licząca jedynki w wyniku tabeli prawdy
+    if w[i:i+1]=="1" then licz:=licz+1
+    i:=i+1
+  }
+
+  case cal-licz of{                 #wybor opcji za pomocą porównania liczb 1 i 0 w wyrazeniu w przypadkach specjalnych takich jak np. wszystkie znaki w wyrazeniu zredukowanym są takie same lub przrezkazująca sterowanie do rzypadków niespecjalnych
+    0: s:="T"                       #gdy wszystkie w wyniku są same 1 to True
+    1:  if w[1]=="0" then s:=specjalny(m,a,1)     #gdy w wyniku jest 0 to altrnatywa gdy 1jest na pierwszym miejscu
+        else
+          if m==2 then{                                 #lub gdy są tylko dwie liczby w wyrazeniu wejsciowym..
+            if w[3]=="0" then s:=specjalny(m,a,4)                 #gdy 0 jest na trzecm miejscu to implikacja
+            else if w[2]=="0" then s:=specjalny(m,reverse(a),4)   #a gdy 0 jest na drugimm miejscu to odwrotna implicja(nia a>b tylko b>a)
+                else s:=inne(v,w,a)}                              # w przeciwnym wypadku idziemy to przypadkow niespecjalnych
+          else s:=inne(v,w,a)                            # w przeciwnym wypadku idziemy to przypadkow niespecjalnych
+    cal-1: if w[-1]=="1" then s:=specjalny(m,a,2)    # gdy jest tylko jedna jedynka na ostatnim miejscu to koniunkcja
+            else s:=inne(v,w,a)                      # w przeciwnym wypadku idziemy to przypadkow niespecjalnych
+    cal: s:="F"                                   #gdy w wyniku nie ma 1 to False
+    default: if flag>1 then s:=specjalny(m,a,3)      #w przypadkach które nie obejmują poprzednie casy to sprawdzamy flage. Jeśli większa od 1 to xor
+             else s:=inne(v,w,a)                     # w przeciwnym wypadku idziemy to przypadkow niespecjalnych
+  }
+  return s
+end
+
+procedure specjalny(a,l,d)          #procedura wypisuje specjalne przypadki
+  s:=""
+  every i:=1 to a+1 do{
+    case d of{
+    1:  if i~=1 then s:=s||"|"
+    2:  if i~=1 then s:=s||"&"
+    3:  if i~=1 then s:=s||"^"
+    4:  if i~=1 then s:=s||">"
+    }
+    s:=s||l[i]
+  }
+  if s[-1]~==!'01' then s:=s[1:-1]
+  return s
+end
+
+procedure inne(v,w,a)       #procedura redukująca przypadki niespecjalne i je wypisująca
+o:=1          #licznik pomocniczy
+b:=1
+s:=""         #ciąg zredukowany
+l:=list(0)    #lista wygenerowanych ciągów, które w wyniku dają 1
+
+  every g:=!v do{       #funkcja tworząca listę wygenerowanych ciągów, które w wyniku dają 1
+    if w[o]==1 then{
+      l:=l|||[g]
+    }
+    o:=o+1
+  }
+
+  y:=copy(l)        #lista wygenerowanych ciągów, które w wyniku dają 1
+  l:=skrot(kasacja(prosciej(l)),y)   #redukcja wyrazenia
+  l:=eor(l)
+
+  every m:=!l do{             #wypisywanie do s wyrazenia zredukowanego
+      if b~=1 then s:=s||"|"
+      s:=s||wypisz(m,a)
+      b:=b+1
+ }
+ return s
+end
+
+procedure prosciej(l)             #procedura, która przy pomocy Metody Quine’a-McCluskeya redukuje ciągi wygenreowane które w wyniku dają 1
+  s:=list(0)              #lista  zredukowanych ciagów wygenerowanych które w wyniku daja 1
+  b:=0
+
+  every v1:=!l do {
+    a:=0
+    every v2:=!l do{
+      if g:=lacz(v1,v2) then {
+        a:=b:=1
+        s:=s|||[g]
+      }
+    }
+    if a=0 then s:=s|||[v1]
+  }
+
+  return if b==0 then s else prosciej(s)
+end
+
+procedure lacz(s1,s2)           #procedura, która sprawdza czy możliwe i jeśli tak to łączy dwa ciągi wygenerwoane w ciąg zredukowany
+	r:=0                 #zmienna pomocnicza, sprawdzająca ile różniący się bitów między s1 i s2 jest
+
+  every i:=1 to *s1 do{
+	   if s1[i]~==s2[i] then {
+       r:=r+1
+       s1[i]:="-"
+     }
+   }
+
+	if r=1 then return s1  #jeśli s1 is 2 różnią się tylko jednym bitem to zwróć zredukowany ciąg
+  else fail               #jeśli nie to fail
+end
+
+procedure kasacja(l)            #procedura kasująca z listy zredukowanych ciągów powtórzenia
+s:=list(0)
+  every i:=1 to *l do{
+    if l[i]~=="---" then{
+      s:=s|||[l[i]]
+      every b:=i+1 to *l do{
+        if l[i]==l[b] then{
+          l[b]:="---"
+        }
+      }
+    }
+  }
+  return s
+end
+
+procedure skrot(l,b)      # proedura sprawdzająca czy wszystkie ciągi redukowane są potrzebne do prawidłowego zredukowania wyrażenia wejściowego
+  ost:=list(0)        #lista ostateczna zredukowanych ciągów
+  c:=porownania(tabela(l,b))    #funkcja, która najpierw zwraca zapełnioną listę przecięcia skróconych wyrażeń z zredukowanymi wyrażeniami a następnie sprawdza nakrywanie się wyników tejże listy
+  i:=1
+  every g:=!c do{             #tworzenie listy ostatecznej zredukowanych ciągów
+    if g==1 then{             #jeśli dana w kolejności cyfra c jest równa 1 to odpowiadający ciąg zredukowany jest brany pod uwagę
+      ost:=ost|||[l[i]]
+    }
+    i:=i+1
+  }
+  return ost
+end
+
+procedure tabela(l,b)   #procedura zwracająca zapełnioną listę przecięcia skróconych wyrażeń z zredukowanymi wyrażeniami
+  a:=list(0)      #lista przecięcia skróconych wyrażeń z zredukowanymi wyrażeniami
+
+  every g:=!l do{
+    w:=""           #wynik przecięcia poszczgólnych wyrazów z l ze wszystkimi wyrazami z b
+    every v:=!b do{
+      c:=0
+      every i:=1 to *v do{
+        if g[i]=="-" then next
+        if g[i]~==v[i] then c:=1
+      }
+      if c==0 then w:=w||"1"
+      else w:=w||"0"
+    }
+    a:=a|||[w]
+  }
+  return a
+end
+
+procedure porownania(a)     #procedura sprawdzająca nakrywanie się wyników listy(czyli czy potrzebujemy wszystkich zedukowanych wyrażeń do prawidłowego zredukowanaia wyrażenia wejściowego)
+  c:=*(a[1])      #długość wyników przecięcia się tabeli wyrażeń skróconych i zredukowanych
+
+  every v:=generator(*a) do{
+    flag:=0                         #flaga sprawdzająca czy wzięte pod uwagę ciągi są wystarczające
+    b:=0                            #zmienna pomocnicza
+    every i:=1 to *v do
+      if v[i]==1 then b:=b+integer(a[i])  #wybrane ciągi dodajemy do siebie jak zwykłe integery(naszym celem jest uzyskanie integery o tej samej długości co wyniki w tabeli wejściowej oraz aby wszystkie cyfry tejże cyfry btyły większe od0 )
+    if *b~==c then next                    #jeśli odtateczny wynik nie ma takiej samej długości co wyniki w tabeli wejściowej to sprawdzamy kolejny przpyadek
+    else every o:=1 to *b do{         #sprawdzamy czy wszystkie cyfry w b są większe od 1, poniewąz to znaczy że pokrywaja wszystkie wyniki
+      if b[o]=="0" then flag:=1
+    }
+    if flag==0 then break
+  }
+  return v
+end
+
+procedure eor(l)    #procedura sprawdzająca czy wyrażeniaostateczne nie można uprościć do xora
+  s:=list(0)    #lista wyrazeń, które można uprościć do xora
+  m:=list(0)    #lista wynikowa
+  flag1:=0
+  flag2:=0
+  flag3:=0
+
+  every i:=1 to *l do{
+    v1:=l[i]
+    every j:=i+1 to *l do{
+      v2:=l[j]
+      every i:=1 to *v1 do{
+        if v1[i]=="0" then if v2[i]=="1" then flag1:=1
+        if v1[i]=="1" then if v2[i]=="0" then flag2:=1
+        if v1[i]=="-" then if v2[i]=="-" then flag3:=1
+        else flag3:=0
+      }
+      if flag1==1 then if flag2==1 then if flag3==1 then s:=s|||[v1,v2] #czyli można uprościć do xora
+    }
+  }
+
+  every s1:=!l do{      #sprawdzamy czy objekt z l jest w s i jęsli nie to przepisuje go do m
+    flag4:=0
+    every s2:=!s do{
+      if s1==s2 then flag4:=1
+    }
+    if flag4==0 then m:=m|||[s1]
+  }
+
+  every w:=1 to *s by 2 do{     #obiekty z s sprawdzay co 2 ponieważ są one parami
+    p:=""                       #funkcja zamienia wyrażenia z s w typ xorowy czyli zmienne tworzące xor zamienia na dwójki
+    a:=s[w]
+    every l:=1 to *a do{
+      if a[l]=="-" then {
+        p:=p||"-"
+        next
+      }
+      else p:=p||"2"
+    }
+    m:=m|||[p]
+  }
+  return m
+end
+
+procedure wypisz(v,l)         # konwersja wyrażenia z wersji binarnej na c-sety
+  r:=""
+  i:=1
+  every tmp:=!v do{
+      if tmp=="-" then {  #jeśli - togo pomijamy
+        i:=i+1
+        next
+      }
+      else{
+        if tmp=="0" then r:=r||"~"||l[i]     #negacja
+        else r:=r||l[i]
+        i:=i+1
+        if tmp=="2" then{                   #xor
+          if r[-1]~=="^" then r:=r||"^"
+        }
+        else r:=r||"&"                  #koniunkcja
+      }
+  }
+  if r[-1]=="&" then r:=r[1:-1]   #jeśli ostatni znak w wyrażeniu to & to go wtedy usuwamy
+  if r[-1]=="^" then r:=r[1:-1]
+  return r
+end
+
+ procedure main()
+  while s:=read() do{
+    if s:=poprawnosc(s) then {    #sprawdzamy poprawnosc wprowadzonych danych
+      a:=s
+      s:=wyrazenie(odwrotnaNP(s))       # nastepnie konwersja na Odwrotną Notację Polską i wynik przekazujemy do funkcji liczącej wyrażenie końcowe
+      if *s>*a then write(a)          #sprawdzamy które wyrażenie jest krótsze i je wypisujemy
+      else write(s)
+    }
+    else write("ERROR")
+}
+end
