@@ -1,0 +1,51 @@
+procedure mm(Size, first, second, multiplay)
+  sum := 0
+    every i := 1 to Size do{
+      every j := 1 to Size do{
+        every k := 1 to Size do{
+          sum := sum + first[i][k] * second[k][j]
+          #write(sum)
+          #write(i," ",j," ", k)
+    '''      if k < Size-7 then{
+            sum := sum + first[i][k] * second[k][j]
+            sum := sum + first[i][k+1] * second[k+1][j]
+            sum := sum + first[i][k+2] * second[k+2][j]
+            sum := sum + first[i][k+3] * second[k+3][j]
+            sum := sum + first[i][k+4] * second[k+4][j]
+            sum := sum + first[i][k+5] * second[k+5][j]
+            sum := sum + first[i][k+6] * second[k+6][j]
+            sum := sum + first[i][k+7] * second[k+7][j]
+            k := k+7
+          #  write(i," ",j," ", k)
+          }
+          else{
+            sum := sum + first[i][k] * second[k][j]
+            k:= k + 1
+          }
+    '''
+        }
+    #    write(sum)
+        multiplay[i][j] := sum
+        sum := 0
+      }
+    }
+    return multiplay
+end
+
+procedure main()
+  Size := 500
+  matrixA := list(500)
+  matrixB := list(500)
+  matrixC := list(500)
+  every !matrixA := list(5, 2)
+    matrixA[2][4] +:= 5
+  #every write(!!matrixA)
+  every !matrixB := list(5, 1)
+    matrixB[2][4] +:= 5
+  #every write(!!matrixB)
+  every !matrixC := list(5, 0)
+  #every write(!!matrixC)
+  #write(Size)
+  result := mm(Size, matrixA, matrixB, matrixC)
+  #every write(!!result)
+end
